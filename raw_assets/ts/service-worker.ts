@@ -6,10 +6,18 @@ if(workbox) {
   console.log("deu certo saporra");
 
   workbox.routing.registerRoute(
+    // Cache HTML files
+    '/',
+    workbox.strategies.networkFirst({
+      cacheName: 'html-cache'
+    })
+  );
+
+  workbox.routing.registerRoute(
     // Cache CSS files
     /.*\.css/,
     // Use cache but update in the background ASAP
-    workbox.strategies.staleWhileRevalidate({
+    workbox.strategies.networkFirst({
       // Use a custom cache name
       cacheName: 'css-cache',
     })
@@ -18,8 +26,9 @@ if(workbox) {
   workbox.routing.registerRoute(
     // Cache image files
     /.*\.(?:png|jpg|jpeg|svg|gif)/,
-    // Use the cache if it's available
-    workbox.strategies.cacheFirst({
+    
+    workbox.strategies.networkFirst({
+
       // Use a custom cache name
       cacheName: 'image-cache',
       plugins: [
@@ -32,9 +41,57 @@ if(workbox) {
       ],
     })
   );
+
+  workbox.routing.registerRoute(
+    // Cache JS files
+    /.*\.js/,
+    workbox.strategies.networkFirst({
+      cacheName: 'js-cache'
+    })
+  );
+
+
   
 } else {
   console.log("num foi :(");
 }
 
+let cacheVersion: number = 1;
+let currentCache = {
+  offline: 'offline-cache' + cacheVersion
+};
 
+const offlineUrl: string = 'offline-page.html';
+
+self.addEventListener('install', event => {
+  (<any>event).waitUntil(
+    caches.open(currentCache.offline).then(function(cache) {
+      return cache.addAll([
+          // './img/offline.svg',
+          // offlineUrl
+          'offline-page.html'
+      ]);
+    })
+  );
+});
+
+self.addEventListener('fetch', (event: any) => {
+  // request.mode = navigate isn't supported in all browsers
+  // so include a check for Accept: text/html header.
+  if (event.request.mode === 'navigate' || (event.request.method === 'GET' && event.request.headers.get('accept').includes('text/html'))) {
+        event.respondWith(
+          fetch(event.request.url).catch(error => {
+              // Return the offline page
+              return caches.match('offline-page.html');
+          })
+    );
+  }
+  else{
+        // Respond with everything else if we can
+        event.respondWith(caches.match(event.request)
+                        .then(function (response) {
+                        return response || fetch(event.request);
+                    })
+            );
+      }
+});
